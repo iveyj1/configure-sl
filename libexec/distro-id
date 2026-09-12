@@ -1,0 +1,12 @@
+#!/bin/sh
+# Identification is for session policy, not an application runtime dependency.
+# No ID_LIKE guessing: unknown systems get the generic session policy.
+ID=unknown
+if [ -r /etc/os-release ]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+elif [ -r /usr/lib/os-release ]; then
+    # shellcheck source=/dev/null
+    . /usr/lib/os-release
+fi
+printf '%s\n' "$ID"

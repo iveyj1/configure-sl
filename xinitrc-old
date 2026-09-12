@@ -1,0 +1,6 @@
+touch in_xinitrc
+xrandr --dpi 144
+printf 'Xft.dpi: 144\n' | xrdb -merge -''
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+export QT_FONT_DPI=144
+exec dwm -fn "DroidSansM Nerd Font Mono:size=10"

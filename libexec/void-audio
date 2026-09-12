@@ -1,0 +1,15 @@
+#!/bin/sh
+# For the Void installer policy: PipeWire starts WirePlumber and pipewire-pulse
+# through its configured drop-ins. Never launch these as root/system services.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ ! -d "$XDG_RUNTIME_DIR" ]; then
+    echo 'dwm-session: Void audio needs a PAM/elogind XDG_RUNTIME_DIR' >&2
+    exit 1
+fi
+command -v pipewire >/dev/null 2>&1 || {
+    echo 'dwm-session: pipewire not installed (optional)' >&2; exit 0;
+}
+# Respect an existing user audio server (including one from another session).
+if [ -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
+    exit 0
+fi
+exec pipewire

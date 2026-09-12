@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=dwm
+Comment=Local dwm session
+Type=Application
+Exec=@PREFIX@/bin/dwm-session
+TryExec=@PREFIX@/bin/dwm-session

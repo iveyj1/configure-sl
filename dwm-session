@@ -1,0 +1,116 @@
+#!/bin/sh
+# Session assembly only: no package installation or privileged operations.
+# Installed by Makefile, which substitutes the private helper directory.
+libexec='@LIBEXECDIR@'
+config=${XDG_CONFIG_HOME:-"$HOME/.config"}/dwm/session.conf
+# shellcheck source=/dev/null
+[ ! -r "$config" ] || . "$config"
+
+: "${DWM_SESSION_DPI:=144}"
+: "${DWM_SESSION_FONT:=DroidSansM Nerd Font Mono:size=10}"
+: "${DWM_SESSION_WM:=dwm}"
+: "${DWM_SESSION_BLOCKS:=auto}"
+: "${DWM_SESSION_POLKIT:=auto}"
+: "${DWM_SESSION_AUDIO:=auto}"
+
+warn() { printf 'dwm-session: %s\n' "$*" >&2; }
+[ -n "${DISPLAY:-}" ] || { warn 'no DISPLAY; launch through LightDM or startx'; exit 1; }
+command -v "$DWM_SESSION_WM" >/dev/null 2>&1 || {
+    warn "window manager not found: $DWM_SESSION_WM"; exit 127;
+}
+export XDG_CURRENT_DESKTOP=dwm XDG_SESSION_DESKTOP=dwm XDG_SESSION_TYPE=x11
+# LightDM/PAM normally provides these. Never manufacture XDG_RUNTIME_DIR.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    command -v dbus-run-session >/dev/null 2>&1 || {
+        warn 'no session bus and dbus-run-session is missing'; exit 1;
+    }
+    exec dbus-run-session -- "$0" "$@"
+fi
+# Let D-Bus-activated desktop services see this session, without importing the
+# entire shell environment. A user bus shared by simultaneous logins is shared
+# state: the most recently started graphical session supplies these values.
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    set -- XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DISPLAY
+    [ -z "${XAUTHORITY:-}" ] || set -- "$@" XAUTHORITY
+    [ ! -d /run/systemd/system ] || set -- --systemd "$@"
+    dbus-update-activation-environment "$@" || warn 'could not update activation environment'
+fi
+
+if [ -n "$DWM_SESSION_DPI" ] && [ "$DWM_SESSION_DPI" != none ]; then
+    if command -v xrandr >/dev/null 2>&1; then
+        xrandr --dpi "$DWM_SESSION_DPI" || warn 'could not set display DPI'
+    fi
+    if command -v xrdb >/dev/null 2>&1; then
+        printf 'Xft.dpi: %s\n' "$DWM_SESSION_DPI" | xrdb -merge - || warn 'could not set Xft DPI'
+    fi
+    export QT_AUTO_SCREEN_SCALE_FACTOR=1 QT_FONT_DPI="$DWM_SESSION_DPI"
+fi
+
+children=
+wm_pid=
+# Called by traps, including on normal WM exit.
+# shellcheck disable=SC2317
+cleanup() {
+    trap - EXIT HUP INT TERM
+    # Only processes owned by this launcher, never killall/pkill by name.
+    [ -z "$wm_pid" ] || kill "$wm_pid" 2>/dev/null || :
+    for pid in $children; do kill "$pid" 2>/dev/null || :; done
+    [ -z "$wm_pid" ] || wait "$wm_pid" 2>/dev/null || :
+    for pid in $children; do wait "$pid" 2>/dev/null || :; done
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [ "$DWM_SESSION_AUDIO" = auto ]; then
+    distro=$("$libexec/distro-id")
+    case "$distro" in
+        void) DWM_SESSION_AUDIO=void ;;
+        *) DWM_SESSION_AUDIO=none ;;
+    esac
+fi
+case "$DWM_SESSION_AUDIO" in
+    void) "$libexec/void-audio" & children="$children $!" ;;
+    none) : ;;
+    *) warn "unknown audio policy: $DWM_SESSION_AUDIO (skipping)" ;;
+esac
+
+case "$DWM_SESSION_POLKIT" in
+    none) ;;
+    auto)
+        # Packages use different paths. No desktop-wide autostart scan.
+        for agent in /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1 \
+            /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 \
+            /usr/libexec/polkit-gnome-authentication-agent-1 \
+            /usr/libexec/xfce-polkit /usr/lib/xfce-polkit/xfce-polkit xfce-polkit; do
+            if command -v "$agent" >/dev/null 2>&1; then
+                "$agent" & children="$children $!"
+                break
+            fi
+        done
+        command -v "$agent" >/dev/null 2>&1 || warn 'no polkit agent found (optional)'
+        ;;
+    *)
+        if command -v "$DWM_SESSION_POLKIT" >/dev/null 2>&1; then
+            "$DWM_SESSION_POLKIT" & children="$children $!"
+        else
+            warn "polkit agent not found: $DWM_SESSION_POLKIT"
+        fi
+        ;;
+esac
+if [ "$DWM_SESSION_BLOCKS" != none ]; then
+    if command -v dwmblocks >/dev/null 2>&1; then
+        dwmblocks & children="$children $!"
+    else
+        warn 'dwmblocks not installed (optional)'
+    fi
+fi
+
+# Keep font quoting here, not in a desktop Exec line traversing Xsession.
+"$DWM_SESSION_WM" -fn "$DWM_SESSION_FONT" &
+wm_pid=$!
+wait "$wm_pid"
+status=$?
+wm_pid=
+exit "$status"
