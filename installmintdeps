@@ -1,0 +1,1 @@
+sudo apt install xinit x11-xserver-utils dbus-daemon xdg-utils policykit-1-gnome iw brightnessctl playerctl scrot xclip xsel xinit x11-xserver-utils dbus-daemon xdg-utils policykit-1-gnome iw brightnessctl playerctl scrot xclip xsel

@@ -1,177 +1,156 @@
-# Small dwm session integration: Mint and Void
+# Small dwm session integration for Mint and Void
 
-This checkout owns session assembly, **not** the four applications or a distro
-compatibility framework. dmenu, dwm, dwmblocks and st-reflow retain their own
-build/install targets and work independently. No C executable changes are needed.
+This repository installs a session launcher and a LightDM desktop entry. It does
+not build or install dmenu, dwm, dwmblocks, or st-reflow.
 
-```
-LightDM -> stock Xsession wrapper -> /usr/local/bin/dwm-session
-TTY -> startx -> ~/.xinitrc       -> /usr/local/bin/dwm-session
-```
+Session paths:
 
-The desktop entry has no arguments. This avoids the font-name splitting seen
-with `Exec=dwm -fn "DroidSansM Nerd Font Mono:size=10"` through wrappers that
-expand command strings without preserving argument boundaries. Do not modify
-Mint's global Xsession wrapper to fix this, or call startx from LightDM.
+- LightDM: `LightDM -> stock Xsession wrapper -> /usr/local/bin/dwm-session`
+- Console: `startx -> ~/.xinitrc -> /usr/local/bin/dwm-session`
 
-## Session policy
+## Mint instructions
 
-- 144 DPI, dwm bar font `DroidSansM Nerd Font Mono:size=10`.
-- Optional dwmblocks and one available polkit agent; missing companions warn.
-- Reuse the login's D-Bus session; use dbus-run-session only when absent.
-  Update activation variables for dwm when the standard D-Bus utility is present.
-  Concurrent graphical logins sharing one user bus also share its activation
-  environment; the most recently started session wins.
-- Mint/unknown systems: leave user audio services alone.
-- Void: private `void-audio` helper starts PipeWire unless its default socket
-  already exists. Requires the Void installer's WirePlumber/pipewire-pulse
-  drop-ins and a valid PAM/elogind `XDG_RUNTIME_DIR`. It does not invent one.
-- Small shell supervisor: wait for dwm, preserve its status, terminate/reap only
-  tracked children on logout/signals. No restart loop, killall or pkill.
-- No wallpaper, compositor, notification daemon, automatic locker, or desktop
-  settings daemon. **Suspend does not lock the screen.** Add a proper locker
-  and verified lock-before-suspend integration before relying on that security.
+- Install the build packages:
+  `build-essential pkg-config libx11-dev libxft-dev libxinerama-dev libx11-xcb-dev libxcb-res0-dev libfontconfig-dev libfreetype-dev ncurses-bin`.
+- Install the session/helper packages:
+  `xinit x11-xserver-utils dbus-daemon xdg-utils policykit-1-gnome iw brightnessctl playerctl scrot xclip xsel`.
+-  *** Or run `installmintpkgs`
+- Install the applications (`dmenu`, `dwm`, optional `dwmblocks`, and
+  `st-reflow`) from their own checkouts.
+- Install `DroidSansM Nerd Font Mono`, or set another installed font in
+  `~/.config/dwm/session.conf`.
+- Test and install the launcher from this checkout:
+  ```sh
+  make check
+  sudo make install
+  sudo make install-session
+  ```
+- Log out, select **dwm** in LightDM, and log in.
+- For console startup, copy or merge the supplied `xinitrc` into `~/.xinitrc`,
+  make it executable, and run `startx`.
+- Verify the DPI/font, terminal launch, dwmblocks, polkit prompts, audio,
+  brightness controls, and logout.
+- If using `~/.config/scripts/install-mint-apps`, set `DWM_SESSION_DIR` to this
+  checkout to install the launcher. The script does not register the LightDM
+  entry or replace `~/.xinitrc`.
 
-The private `distro-id` reads os-release. It is used only for audio policy,
-never by the applications. Unknown distros use the conservative generic policy.
-Hardware helpers should continue to select capabilities, not distro names.
+Mint uses its existing PipeWire/WirePlumber user services; the launcher does not
+start another audio server.
 
-Optional configuration is `~/.config/dwm/session.conf`; see
-`session.conf.example`. This is trusted shell code, not a generated file.
-Executable settings take a single name/path, not shell command strings.
-Set `DWM_SESSION_AUDIO=none` if Void audio is managed elsewhere; `void` explicitly
-opts into that policy on another system. DPI is a machine preference, not a
-distro property; use `DWM_SESSION_DPI=none` to leave it untouched.
+## Void instructions
 
-The launcher uses the inherited PATH (normally including /usr/local/bin from
-login setup). Set `DWM_SESSION_WM=/usr/local/bin/dwm` to pin the intended build.
-Keep session startup out of .profile/.xprofile so stock desktops are unaffected.
-Do not start a second dwmblocks, audio server or polkit agent in those files.
+- Use `../void-app-installer` for the XBPS, runit, network, and PipeWire setup.
+  Its core package list includes `brightnessctl` and `libxcb-devel`.
+- Prepare the application checkouts and this checkout. To let the installer
+  install the launcher, set `DWM_SESSION_DIR` to this directory; its default is
+  `$SUCKLESS_DIR/mint-void-suckless`.
+- Install `lightdm` and a greeter such as `lightdm-gtk3-greeter`.
+- Verify the greeter name in the LightDM configuration and keep the packaged
+  D-Bus service plus D-Bus-activated elogind setup.
+- Enable the packaged LightDM runit service when ready. Its usual link is
+  `/var/service/lightdm -> /etc/sv/lightdm`.
+- Test and install the launcher and session entry:
+  ```sh
+  make check
+  sudo make install
+  sudo make install-session
+  ```
+- Log out, select **dwm** in LightDM, and log in.
+- For console startup, use the installer-managed selector or copy/merge the
+  supplied `xinitrc` into `~/.xinitrc`, make it executable, and run `startx`.
+- Verify the DPI/font, terminal launch, dwmblocks, polkit prompts, audio,
+  brightness controls, and logout.
 
-## Prepare and test (no live installation)
+On Void, the launcher starts its private `void-audio` helper when
+`DWM_SESSION_AUDIO=auto`. The helper starts PipeWire only when the default
+PipeWire socket is absent. It requires the installer's WirePlumber and
+pipewire-pulse drop-ins and a PAM/elogind-provided `XDG_RUNTIME_DIR`.
 
-```
-make check
-stage=$(mktemp -d)
-make DESTDIR="$stage" install install-session
-find "$stage" -type f
-```
+## Session configuration
 
-Tests use temporary installations and mock X/audio/window-manager programs.
-`DESTDIR` is for staging: generated paths refer to the final destination.
-`PREFIX` defaults to /usr/local; `SESSIONDIR` independently defaults to
-/usr/share/xsessions, where standard LightDM installations look. Use installation
-paths without whitespace or shell/sed metacharacters. For a nondefault prefix,
-also adjust the example .xinitrc and login PATH.
+Optional configuration lives at `~/.config/dwm/session.conf`. Start with
+`session.conf.example`. The file is sourced as trusted shell code; executable
+settings accept one command name or path, not a shell command string.
 
-## Install later, deliberately
+Defaults:
 
-First build/install the desired applications separately in their own checkouts.
-Do not rerun a whole workstation provisioning script merely to fix a session.
+- `DWM_SESSION_DPI=144`; use `none` to leave DPI and Qt settings unchanged.
+- `DWM_SESSION_FONT='DroidSansM Nerd Font Mono:size=10'`.
+- `DWM_SESSION_WM=dwm`; use `/usr/local/bin/dwm` to pin that installation.
+- `DWM_SESSION_BLOCKS=auto`; use `none` to disable dwmblocks.
+- `DWM_SESSION_POLKIT=auto`; use `none` or an executable path to override it.
+- `DWM_SESSION_AUDIO=auto`; use `none` when audio is managed elsewhere, or
+  `void` to opt into the Void policy on another distribution.
 
-```
-sudo make install
-# Inspect/back up an existing entry BEFORE replacing it:
-# sudo cp -a /usr/share/xsessions/dwm.desktop /root/dwm.desktop.before-session
-sudo make install-session
-```
+The launcher:
 
-`make install` installs only the launcher and its private helpers.
-`install-session` explicitly installs/replaces only `dwm.desktop`; it leaves
-stock entries and the default session untouched. It neither installs nor restarts
-LightDM. Keep the backup outside xsessions to avoid a duplicate menu entry.
+- reuses the login D-Bus session, or uses `dbus-run-session` when no bus exists;
+- updates the standard D-Bus activation environment when the utility exists;
+- starts at most one detected polkit agent and optional dwmblocks;
+- waits for dwm, preserves its exit status, and terminates only tracked child
+  processes at logout;
+- does not start a wallpaper, compositor, notification daemon, locker, or
+  desktop settings daemon.
 
-For console startup, review/back up an existing ~/.xinitrc, then use the supplied
-`xinitrc` (and make it executable). Its only action is `exec dwm-session` by
-absolute path. This is opt-in: this project's Makefile never edits home files.
+## Contingencies
 
-Log out normally and select dwm in LightDM. Do not restart LightDM while a
-session contains unsaved work. A failure should return to the greeter, not loop.
-The supervisor's diagnostics go to the display manager's session log (on this
-Mint installation, ~/.xsession-errors). For console testing:
+### Existing files or nonstandard paths
 
-```
-startx > "$HOME/dwm-startx.log" 2>&1
-```
+- Back up an existing `/usr/share/xsessions/dwm.desktop` before
+  `make install-session`; store the backup outside `xsessions` to avoid a second
+  menu entry.
+- Review and merge an existing `~/.xinitrc` instead of overwriting it.
+- `PREFIX` defaults to `/usr/local`; `SESSIONDIR` defaults independently to
+  `/usr/share/xsessions`. If either differs locally, pass it to `make` and update
+  `~/.xinitrc` and `PATH` as needed.
+- To inspect an installation without changing the live system:
+  ```sh
+  stage=$(mktemp -d)
+  make DESTDIR="$stage" install install-session
+  find "$stage" -type f
+  ```
+  Generated paths still refer to the final `PREFIX`.
 
-If another graphical session is active, use a free VT/display with appropriate
-X-server permissions, or test after ending that session. Do not run a second WM
-inside Cinnamon's existing display. Keep a working stock session for recovery.
+### Session or service conflicts
 
-## Distribution setup
+- Do not start dwmblocks, an audio server, or a polkit agent again from
+  `.profile` or `.xprofile`.
+- Do not launch a second window manager inside an existing Cinnamon or Xfce
+  display. Use another permitted VT/display or end the active session first.
+- Do not enable LightDM alongside another display manager. Creating Void's
+  `/var/service/lightdm` link can start LightDM immediately, so perform that step
+  from a text console when graphical work is closed.
+- Concurrent graphical logins that share one user D-Bus use one activation
+  environment; the most recently started session supplies its display values.
+- Void's console `xfce` selection delegates to `startxfce4`. If an older
+  generated `.xinitrc` started audio for Xfce, move that startup to Xfce
+  autostart or an existing user-service mechanism.
+- The Void installer writes `dwm-portals.conf`, not a global `portals.conf`;
+  review any older global file manually.
 
-### Mint
+### Startup failures
 
-Preserve stock LightDM, slick-greeter, Cinnamon entries and systemd/PAM services.
-The amended `~/.config/scripts/install-mint-apps` lists the missing dependencies
-and optionally installs this launcher from `DWM_SESSION_DIR`. It does not
-register LightDM sessions or change .xinitrc. That broad provisioning script
-still has unrelated downloads and system changes; it is not a repair tool.
+- LightDM diagnostics normally go to its session log; on Mint this is commonly
+  `~/.xsession-errors`.
+- Capture console diagnostics with
+  `startx > "$HOME/dwm-startx.log" 2>&1`.
+- A missing optional dwmblocks or polkit agent produces a warning. A polkit
+  agent cannot correct broken PAM, seat, or elogind registration.
+- On Void, verify `XDG_RUNTIME_DIR`, the PipeWire socket, installer drop-ins,
+  and elogind/PAM setup. Use `DWM_SESSION_AUDIO=none` if another mechanism owns
+  audio.
+- On Mint, inspect audio/session state with `wpctl status`,
+  `systemctl --user status pipewire wireplumber`, and `loginctl session-status`.
+  Packaged `has_option` Xsession warnings are outside this project.
+- If LightDM uses a nonstandard session search directory, set `SESSIONDIR` when
+  installing the desktop entry.
 
-Relevant build packages:
+### Recovery and removal
 
-```
-build-essential pkg-config libx11-dev libxft-dev libxinerama-dev
-libx11-xcb-dev libxcb-res0-dev libfontconfig-dev libfreetype-dev ncurses-bin
-```
-
-Session/helper packages (in addition to the existing X/LightDM/PipeWire stack):
-
-```
-xinit x11-xserver-utils dbus-daemon xdg-utils policykit-1-gnome
-iw brightnessctl playerctl scrot xclip xsel
-```
-
-Install the chosen Nerd Fonts separately or select installed fonts. Do not
-start PipeWire/WirePlumber manually on a normal Mint 22 user-service setup.
-`wpctl status`, `systemctl --user status pipewire wireplumber`, and `loginctl
-session-status` help diagnose services; a polkit agent cannot repair a broken
-login/seat registration. Existing `has_option` Xsession warnings are a separate
-packaged-wrapper issue: this project does not patch system files to hide them.
-
-### Void
-
-`../void-app-installer` retains XBPS/runit/network/PipeWire setup. Its core list
-now explicitly includes brightnessctl and libxcb-devel. It installs this
-launcher only if `DWM_SESSION_DIR` points at a prepared checkout (default:
-`$SUCKLESS_DIR/mint-void-suckless`), otherwise leaves .xinitrc unchanged with a
-message. It never fetches this integration implicitly. App clones use HTTPS,
-so a fresh machine does not need GitHub SSH authentication to build them.
-
-For LightDM, install the Void packages `lightdm` and a greeter such as
-`lightdm-gtk3-greeter`, verify its greeter session name/configuration, then enable
-the packaged LightDM runit service when ready. Keep the existing D-Bus service
-and D-Bus-activated elogind arrangement. The usual service link is
-`/var/service/lightdm -> /etc/sv/lightdm`; creating it may immediately start the
-manager, so do this deliberately from a recovery console, not in an installer
-run during graphical work. Register dwm with `make install-session` separately.
-Check the installed LightDM session search path if it differs from the default.
-Do not enable a second display manager alongside it.
-
-Stock Xfce LightDM entries use their stock launcher. The managed console selector
-still accepts `xfce`, now delegating to startxfce4 rather than imposing dwm's
-session services. **Migration:** if Xfce previously relied on the generated
-.xinitrc to start audio, configure PipeWire once through Xfce's session autostart
-(or your existing user-service mechanism). The dwm Void helper is not a general
-Xfce session manager. This deliberate separation keeps desktops independent.
-
-The installer now writes a dwm-specific `dwm-portals.conf` instead of a global
-`portals.conf`. Review any old global file yourself: it is not silently removed.
-
-## Console and recovery
-
-A real console is a getty on a spare VT (Ctrl+Alt+F-key), not a LightDM X session
-named "console". Keep at least one enabled and verify login before changing
-session files. Mint normally provides systemd gettys; Void uses runit agetty
-services. No display-manager stop/chvt privilege wrapper is installed.
-
-After installation, verify both LightDM and startx: font/DPI, terminal launch,
-optional status, polkit authorization, audio, brightness and logout cleanup.
-Test suspend only after saving work; test locking separately once configured.
-The code has headless tests, not a claim of live dual-distro certification.
-
-Rollback: restore the backed-up dwm.desktop and .xinitrc; select a stock session
-or use a TTY. `make uninstall-session` removes only the dwm entry and `make
-uninstall` removes the launcher/helpers. Neither removes applications, fonts,
-packages, user configuration, or changes services. Restore a previous dwm entry
-from backup rather than expecting uninstall to reconstruct it.
+- Keep a working stock desktop entry and a verified getty on a spare VT.
+- Restore backed-up `dwm.desktop` or `~/.xinitrc` files to roll back.
+- Run `sudo make uninstall-session` to remove the dwm desktop entry and
+  `sudo make uninstall` to remove the launcher/helpers. These targets do not
+  remove applications, packages, fonts, user configuration, or services.
+- Suspend does not lock the screen. Configure and test a locker with
+  lock-before-suspend integration before depending on suspend for security.
