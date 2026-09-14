@@ -3,6 +3,6 @@
 ! dwm-session merges ~/.Xresources first, then this file.
 Xft.dpi: 144
 
-dwm.font: DroidSansM Nerd Font Mono:size=11
-dmenu.font: DroidSansM Nerd Font Mono:size=11
+dwm.font: JetBrainsMono Nerd Font Mono:size=11
+dmenu.font: JetBrainsMono Nerd Font Mono:size=11
 st.font: JetBrainsMono Nerd Font Mono:size=11
