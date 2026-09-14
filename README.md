@@ -10,16 +10,17 @@ Session paths:
 
 ## Mint instructions
 
-- Install the build packages:
-  `build-essential pkg-config libx11-dev libxft-dev libxinerama-dev libx11-xcb-dev libxcb-res0-dev libfontconfig-dev libfreetype-dev ncurses-bin`.
-- Install the session/helper packages:
-  `xinit x11-xserver-utils dbus-daemon xdg-utils policykit-1-gnome iw brightnessctl playerctl scrot xclip xsel`.
--  *** Or run `installmintpkgs`
+- Install build/session dependencies with
+  `../mint-app-installer/installmintdeps` (moved out of this repository).
+  That repo owns Mint APT provisioning; see its README for the package list and
+  the optional full personal `install-mint-apps` bootstrap.
 - Install the applications (`dmenu`, `dwm`, optional `dwmblocks`, and
   `st-reflow`) from their own checkouts.
-- Install the desired fonts and copy `machine.resources.example` to
-  `~/.config/X11/machine.resources` (create the directory first). Edit it per
-  machine; the supplied bar, menu and terminal font sizes are all 11 points.
+- Install the desired fonts (optionally using
+  `../mint-app-installer/install-debian-nerd-fonts`). Run
+  `make install-user-config` **without sudo** to create missing local defaults.
+  Edit `~/.config/X11/machine.resources` per machine; supplied font sizes are
+  all 11 points, at 144 DPI. Existing files/symlinks are never overwritten.
 - Test and install the launcher from this checkout:
   ```sh
   make check
@@ -31,9 +32,10 @@ Session paths:
   make it executable, and run `startx`.
 - Verify the DPI/font, terminal launch, dwmblocks, polkit prompts, audio,
   brightness controls, and logout.
-- If using `~/.config/scripts/install-mint-apps`, set `DWM_SESSION_DIR` to this
-  checkout to install the launcher. The script does not register the LightDM
-  entry or replace `~/.xinitrc`.
+- If using `../mint-app-installer/install-mint-apps`, `DWM_SESSION_DIR` defaults
+  to `~/.local/src/configure-sl`; override it for a different checkout.
+  The script optionally installs the launcher but does not create user defaults,
+  register the LightDM entry, or replace `~/.xinitrc`.
 
 Mint uses its existing PipeWire/WirePlumber user services; the launcher does not
 start another audio server.
@@ -44,7 +46,9 @@ start another audio server.
   Its core package list includes `brightnessctl` and `libxcb-devel`.
 - Prepare the application checkouts and this checkout. To let the installer
   install the launcher, set `DWM_SESSION_DIR` to this directory; its default is
-  `$SUCKLESS_DIR/mint-void-suckless`.
+  `$SUCKLESS_DIR/configure-sl`.
+- Run `make install-user-config` here as your normal user to create any missing
+  machine/session defaults; review the font/DPI values before logging in.
 - Install `lightdm` and a greeter such as `lightdm-gtk3-greeter`.
 - Verify the greeter name in the LightDM configuration and keep the packaged
   D-Bus service plus D-Bus-activated elogind setup.
@@ -66,6 +70,23 @@ On Void, the launcher starts its private `void-audio` helper when
 `DWM_SESSION_AUDIO=auto`. The helper starts PipeWire only when the default
 PipeWire socket is absent. It requires the installer's WirePlumber and
 pipewire-pulse drop-ins and a PAM/elogind-provided `XDG_RUNTIME_DIR`.
+
+## Configuration ownership
+
+- `mint-app-installer` and `void-app-installer`: distro packages, provisioning
+  and service policy. No runtime compatibility framework.
+- Each application repository: its own build, install and helper scripts.
+- `configure-sl` (this repo): shared session launcher, desktop entry and examples.
+- `dotrepo`: shared preferences such as the symlinked `~/.Xresources`.
+- Local `~/.config/X11/machine.resources`: per-machine fonts/DPI, not automatically
+  distributed through dotrepo.
+
+`make install-user-config` explicitly creates missing `X11/machine.resources`
+and `dwm/session.conf` under `${XDG_CONFIG_HOME:-$HOME/.config}`. It refuses
+sudo/root and DESTDIR, preserves existing files (including dangling symlinks),
+and never edits .Xresources, .xinitrc or dotrepo. System `make install` and the
+distro provisioning scripts do not invoke this target. Tests use temporary
+homes; no live user configuration is created by `make check`.
 
 ## Session configuration
 
