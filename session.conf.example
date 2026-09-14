@@ -1,8 +1,7 @@
 # Optional ~/.config/dwm/session.conf; sourced as shell code by dwm-session.
 # These are the defaults. Command settings are executable names/paths, not
 # shell command strings. Use an external wrapper if arguments are needed.
-DWM_SESSION_DPI=144                  # 'none' leaves DPI/Qt settings alone
-DWM_SESSION_FONT='DroidSansM Nerd Font Mono:size=10'
+# Fonts and DPI: ~/.config/X11/machine.resources (see machine.resources.example).
 DWM_SESSION_WM=dwm
 DWM_SESSION_BLOCKS=auto              # auto or none
 DWM_SESSION_POLKIT=auto              # auto, none, or an executable path

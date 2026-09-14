@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 import signal
+import shutil
+import sys
 import socket
 import subprocess
 import tempfile
@@ -28,11 +30,25 @@ class Session(unittest.TestCase):
                         PATH=str(self.bin), DISPLAY=':fake', DBUS_SESSION_BUS_ADDRESS='fake',
                         XDG_RUNTIME_DIR=str(self.base), DWM_SESSION_AUDIO='none',
                         DWM_SESSION_POLKIT='none', DWM_SESSION_BLOCKS='none',
-                        DWM_SESSION_WM='dwm', DWM_SESSION_DPI='144',
-                        DWM_SESSION_FONT='DroidSansM Nerd Font Mono:size=10', OUT=str(self.base))
+                        DWM_SESSION_WM='dwm', OUT=str(self.base))
+        (self.bin / 'awk').symlink_to(shutil.which('awk'))
+        (self.base / '.Xresources').write_text(
+            'Xft.dpi: 144\ndwm.font: DroidSansM Nerd Font Mono:size=11\n')
         self.mock('dwm', 'printf "%s\\n" "$#" "$1" "$2" > "$OUT/args"; exit 7')
         self.mock('xrandr', 'printf "%s\\n" "$@" > "$OUT/dpi"')
-        self.mock('xrdb', 'while IFS= read -r line; do printf "%s\\n" "$line"; done > "$OUT/resources"')
+        xrdb = self.bin / 'xrdb'
+        xrdb.write_text(f'#!{sys.executable}\n'
+                        'import json, os, pathlib, sys\n'
+                        'db = pathlib.Path(os.environ["OUT"]) / "resources"\n'
+                        'data = json.loads(db.read_text()) if db.exists() else {}\n'
+                        'if sys.argv[1] == "-query":\n'
+                        '    print("\\n".join(k+": "+v for k,v in data.items()))\n'
+                        'else:\n'
+                        '    for line in pathlib.Path(sys.argv[2]).read_text().splitlines():\n'
+                        '        if ":" in line:\n'
+                        '            k,v=line.split(":",1); data[k.strip()]=v.strip()\n'
+                        '    db.write_text(json.dumps(data))\n')
+        xrdb.chmod(0o755)
 
     def mock(self, name, body):
         path = self.bin / name
@@ -47,8 +63,8 @@ class Session(unittest.TestCase):
         result = self.run_session()
         self.assertEqual(result.returncode, 7, result.stderr)
         self.assertEqual((self.base / 'args').read_text().splitlines(),
-                         ['2', '-fn', 'DroidSansM Nerd Font Mono:size=10'])
-        self.assertEqual((self.base / 'resources').read_text(), 'Xft.dpi: 144\n')
+                         ['2', '-fn', 'DroidSansM Nerd Font Mono:size=11'])
+        self.assertEqual((self.base / 'dpi').read_text(), '--dpi\n144\n')
         desktop = (self.base / 'sessions/dwm.desktop').read_text()
         self.assertIn(f'Exec={self.launcher}\n', desktop)
         self.assertNotIn('-fn', desktop)
@@ -81,12 +97,18 @@ class Session(unittest.TestCase):
         self.assertIn('XDG_CURRENT_DESKTOP', args)
         self.assertNotIn('--all', args)
 
-    def test_config_override(self):
-        config = self.base / 'config/dwm'
+    def test_machine_override(self):
+        config = self.base / 'config/X11'
         config.mkdir(parents=True)
-        (config / 'session.conf').write_text("DWM_SESSION_FONT='monospace:size=12'\nDWM_SESSION_DPI=none\n")
+        (config / 'machine.resources').write_text('dwm.font: Local Font:size=11\nXft.dpi: 96\n')
+        self.assertEqual(self.run_session(DWM_SESSION_FONT='ignored:size=7').returncode, 7)
+        self.assertIn('Local Font:size=11', (self.base / 'args').read_text())
+        self.assertEqual((self.base / 'dpi').read_text(), '--dpi\n96\n')
+
+    def test_without_resources(self):
+        (self.bin / 'xrdb').unlink()
         self.assertEqual(self.run_session().returncode, 7)
-        self.assertIn('monospace:size=12', (self.base / 'args').read_text())
+        self.assertIn('monospace:size=11', (self.base / 'args').read_text())
         self.assertFalse((self.base / 'dpi').exists())
 
     def test_audio_policy(self):

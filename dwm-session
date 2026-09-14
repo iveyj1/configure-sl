@@ -6,8 +6,6 @@ config=${XDG_CONFIG_HOME:-"$HOME/.config"}/dwm/session.conf
 # shellcheck source=/dev/null
 [ ! -r "$config" ] || . "$config"
 
-: "${DWM_SESSION_DPI:=144}"
-: "${DWM_SESSION_FONT:=DroidSansM Nerd Font Mono:size=10}"
 : "${DWM_SESSION_WM:=dwm}"
 : "${DWM_SESSION_BLOCKS:=auto}"
 : "${DWM_SESSION_POLKIT:=auto}"
@@ -36,14 +34,27 @@ if command -v dbus-update-activation-environment >/dev/null 2>&1; then
     dbus-update-activation-environment "$@" || warn 'could not update activation environment'
 fi
 
-if [ -n "$DWM_SESSION_DPI" ] && [ "$DWM_SESSION_DPI" != none ]; then
+# Common resources first, local machine settings last. Re-merging on LightDM
+# is intentional: startx and LightDM must use the same effective resources.
+resources=
+if command -v xrdb >/dev/null 2>&1; then
+    for file in "$HOME/.Xresources" "${XDG_CONFIG_HOME:-$HOME/.config}/X11/machine.resources"; do
+        [ ! -r "$file" ] || xrdb -merge "$file" || warn "could not load $file"
+    done
+    resources=$(xrdb -query 2>/dev/null)
+fi
+resource() {
+    printf '%s\n' "$resources" | awk -v key="$1:" '
+        $1 == key { sub(/^[^:]*:[ \t]*/, ""); print; exit }'
+}
+font=$(resource dwm.font)
+font=${font:-monospace:size=11}
+dpi=$(resource Xft.dpi)
+if [ -n "$dpi" ]; then
     if command -v xrandr >/dev/null 2>&1; then
-        xrandr --dpi "$DWM_SESSION_DPI" || warn 'could not set display DPI'
+        xrandr --dpi "$dpi" || warn 'could not set display DPI'
     fi
-    if command -v xrdb >/dev/null 2>&1; then
-        printf 'Xft.dpi: %s\n' "$DWM_SESSION_DPI" | xrdb -merge - || warn 'could not set Xft DPI'
-    fi
-    export QT_AUTO_SCREEN_SCALE_FACTOR=1 QT_FONT_DPI="$DWM_SESSION_DPI"
+    export QT_AUTO_SCREEN_SCALE_FACTOR=1 QT_FONT_DPI="$dpi"
 fi
 
 children=
@@ -108,7 +119,7 @@ if [ "$DWM_SESSION_BLOCKS" != none ]; then
 fi
 
 # Keep font quoting here, not in a desktop Exec line traversing Xsession.
-"$DWM_SESSION_WM" -fn "$DWM_SESSION_FONT" &
+"$DWM_SESSION_WM" -fn "$font" &
 wm_pid=$!
 wait "$wm_pid"
 status=$?

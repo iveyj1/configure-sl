@@ -17,8 +17,9 @@ Session paths:
 -  *** Or run `installmintpkgs`
 - Install the applications (`dmenu`, `dwm`, optional `dwmblocks`, and
   `st-reflow`) from their own checkouts.
-- Install `DroidSansM Nerd Font Mono`, or set another installed font in
-  `~/.config/dwm/session.conf`.
+- Install the desired fonts and copy `machine.resources.example` to
+  `~/.config/X11/machine.resources` (create the directory first). Edit it per
+  machine; the supplied bar, menu and terminal font sizes are all 11 points.
 - Test and install the launcher from this checkout:
   ```sh
   make check
@@ -74,8 +75,6 @@ settings accept one command name or path, not a shell command string.
 
 Defaults:
 
-- `DWM_SESSION_DPI=144`; use `none` to leave DPI and Qt settings unchanged.
-- `DWM_SESSION_FONT='DroidSansM Nerd Font Mono:size=10'`.
 - `DWM_SESSION_WM=dwm`; use `/usr/local/bin/dwm` to pin that installation.
 - `DWM_SESSION_BLOCKS=auto`; use `none` to disable dwmblocks.
 - `DWM_SESSION_POLKIT=auto`; use `none` or an executable path to override it.
@@ -91,6 +90,51 @@ The launcher:
   processes at logout;
 - does not start a wallpaper, compositor, notification daemon, locker, or
   desktop settings daemon.
+
+## Per-machine fonts (no rebuild after initial installation)
+
+The launcher merges `~/.Xresources` first, then
+`${XDG_CONFIG_HOME:-~/.config}/X11/machine.resources`. Keep shared colors in the
+first file and local font/DPI settings in the second. Example:
+
+```text
+Xft.dpi: 144
+dwm.font: DroidSansM Nerd Font Mono:size=11
+dmenu.font: DroidSansM Nerd Font Mono:size=11
+st.font: JetBrainsMono Nerd Font Mono:size=11
+```
+
+`DWM_SESSION_FONT` and `DWM_SESSION_DPI` are retired and ignored. Remove them
+from old session.conf files. The launcher passes `dwm.font` as one quoted `-fn`
+argument; dwm itself does not parse resources. Without it, the bar uses
+`monospace:size=11`. If Xft.dpi is absent, the launcher leaves DPI/Qt settings
+alone. The sample keeps this machine's existing 144 DPI.
+
+The independently installed dmenu repository now supplies `dmenu-font`, a small
+wrapper that queries `dmenu.font` on each invocation (fallback monospace size 11).
+Explicit `-fn` arguments still win. `dmenu_run`, the dwm keymap/tag rename, and
+st's menu helpers use this wrapper when available, otherwise plain dmenu.
+Raw `dmenu` remains unchanged: use `dmenu-font` in other personal scripts if you
+want this policy. No script depends on this session repository for menu fonts.
+
+st already reads `st.font` at startup; `st -f` overrides it and per-window zoom
+is still available. Its compiled fallback is now size 11 too.
+
+After editing the machine file, merge it for this X display:
+
+```sh
+xrdb -merge ~/.config/X11/machine.resources
+```
+
+New menus and terminals then use the new size. Existing st windows retain their
+font/zoom; the bar requires a fresh dwm session. Editing the file alone takes
+effect on the next dwm-session login. Other desktop sessions can merge the same
+file explicitly; the launcher does not change their startup files.
+
+Initial migration: build/install updated dwm and dmenu from their own repos,
+install updated st-reflow (including its helpers), and `sudo make install` here
+for the updated launcher. No new desktop entry or LightDM restart is needed.
+After that, font changes require only resource edits, not recompilation.
 
 ## Contingencies
 
