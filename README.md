@@ -92,7 +92,7 @@ LightDM menu entry; and `install-user-config` creates local defaults. The older
 `make install-user-config` explicitly creates missing `X11/machine.resources`
 and `dwm/session.conf` under `${XDG_CONFIG_HOME:-$HOME/.config}`. It refuses
 sudo/root and DESTDIR, preserves existing files (including dangling symlinks),
-and never edits .Xresources, .xinitrc or dotrepo. System `make install` and the
+and never edits .Xresources, .xinitrc or dotrepo. `make install-launcher` and the
 distro provisioning scripts do not invoke this target. Tests use temporary
 homes; no live user configuration is created by `make check`.
 

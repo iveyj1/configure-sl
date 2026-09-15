@@ -20,7 +20,7 @@ class Session(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
         self.prefix = self.base / 'local'
-        subprocess.run(['make', '-s', 'install', 'install-session',
+        subprocess.run(['make', '-s', 'install-launcher', 'install-lightdm-session',
                         f'PREFIX={self.prefix}', f'SESSIONDIR={self.base}/sessions'],
                        cwd=ROOT, check=True)
         self.bin = self.prefix / 'bin'
