@@ -24,12 +24,13 @@ Session paths:
 - Test and install the launcher from this checkout:
   ```sh
   make check
-  sudo make install
-  sudo make install-session
+  sudo make install-launcher
+  sudo make install-lightdm-session  # optional; only for LightDM
   ```
 - Log out, select **dwm** in LightDM, and log in.
 - For console startup, copy or merge the supplied `xinitrc` into `~/.xinitrc`,
-  make it executable, and run `startx`.
+  make it executable, and run `startx`. Do not run `dwm-session` directly from
+  a console: `startx` must create the X display first.
 - Verify the DPI/font, terminal launch, dwmblocks, polkit prompts, audio,
   brightness controls, and logout.
 - If using `../mint-app-installer/install-mint-apps`, `DWM_SESSION_DIR` defaults
@@ -44,9 +45,9 @@ start another audio server.
 
 - Use `../void-app-installer` for the XBPS, runit, network, and PipeWire setup.
   Its core package list includes `brightnessctl` and `libxcb-devel`.
-- Prepare the application checkouts and this checkout. To let the installer
-  install the launcher, set `DWM_SESSION_DIR` to this directory; its default is
-  `$SUCKLESS_DIR/configure-sl`.
+- Prepare the application checkouts and this checkout. Install this launcher's
+  `install-launcher` target before using the installer-managed `~/.xinitrc`;
+  its dwm branch delegates to `/usr/local/bin/dwm-session`.
 - Run `make install-user-config` here as your normal user to create any missing
   machine/session defaults; review the font/DPI values before logging in.
 - Install `lightdm` and a greeter such as `lightdm-gtk3-greeter`.
@@ -54,15 +55,17 @@ start another audio server.
   D-Bus service plus D-Bus-activated elogind setup.
 - Enable the packaged LightDM runit service when ready. Its usual link is
   `/var/service/lightdm -> /etc/sv/lightdm`.
-- Test and install the launcher and session entry:
+- Test and install the launcher and, if used, the LightDM session entry:
   ```sh
   make check
-  sudo make install
-  sudo make install-session
+  sudo make install-launcher
+  sudo make install-lightdm-session  # optional; only for LightDM
   ```
 - Log out, select **dwm** in LightDM, and log in.
 - For console startup, use the installer-managed selector or copy/merge the
   supplied `xinitrc` into `~/.xinitrc`, make it executable, and run `startx`.
+  The selector delegates its dwm branch to `dwm-session`; do not run the launcher
+  directly from a console because it requires the display created by `startx`.
 - Verify the DPI/font, terminal launch, dwmblocks, polkit prompts, audio,
   brightness controls, and logout.
 
@@ -80,6 +83,11 @@ pipewire-pulse drop-ins and a PAM/elogind-provided `XDG_RUNTIME_DIR`.
 - `dotrepo`: shared preferences such as the symlinked `~/.Xresources`.
 - Local `~/.config/X11/machine.resources`: per-machine fonts/DPI, not automatically
   distributed through dotrepo.
+
+The target names describe their scope: `install-launcher` installs the launcher
+used by both startup paths; `install-lightdm-session` installs only the optional
+LightDM menu entry; and `install-user-config` creates local defaults. The older
+`install` and `install-session` names remain compatibility aliases.
 
 `make install-user-config` explicitly creates missing `X11/machine.resources`
 and `dwm/session.conf` under `${XDG_CONFIG_HOME:-$HOME/.config}`. It refuses
@@ -153,7 +161,7 @@ effect on the next dwm-session login. Other desktop sessions can merge the same
 file explicitly; the launcher does not change their startup files.
 
 Initial migration: build/install updated dwm and dmenu from their own repos,
-install updated st-reflow (including its helpers), and `sudo make install` here
+install updated st-reflow (including its helpers), and `sudo make install-launcher` here
 for the updated launcher. No new desktop entry or LightDM restart is needed.
 After that, font changes require only resource edits, not recompilation.
 
@@ -162,7 +170,7 @@ After that, font changes require only resource edits, not recompilation.
 ### Existing files or nonstandard paths
 
 - Back up an existing `/usr/share/xsessions/dwm.desktop` before
-  `make install-session`; store the backup outside `xsessions` to avoid a second
+  `make install-lightdm-session`; store the backup outside `xsessions` to avoid a second
   menu entry.
 - Review and merge an existing `~/.xinitrc` instead of overwriting it.
 - `PREFIX` defaults to `/usr/local`; `SESSIONDIR` defaults independently to
@@ -171,7 +179,7 @@ After that, font changes require only resource edits, not recompilation.
 - To inspect an installation without changing the live system:
   ```sh
   stage=$(mktemp -d)
-  make DESTDIR="$stage" install install-session
+  make DESTDIR="$stage" install-launcher install-lightdm-session
   find "$stage" -type f
   ```
   Generated paths still refer to the final `PREFIX`.
@@ -214,8 +222,8 @@ After that, font changes require only resource edits, not recompilation.
 
 - Keep a working stock desktop entry and a verified getty on a spare VT.
 - Restore backed-up `dwm.desktop` or `~/.xinitrc` files to roll back.
-- Run `sudo make uninstall-session` to remove the dwm desktop entry and
-  `sudo make uninstall` to remove the launcher/helpers. These targets do not
+- Run `sudo make uninstall-lightdm-session` to remove the dwm desktop entry and
+  `sudo make uninstall-launcher` to remove the launcher/helpers. These targets do not
   remove applications, packages, fonts, user configuration, or services.
 - Suspend does not lock the screen. Configure and test a locker with
   lock-before-suspend integration before depending on suspend for security.

@@ -3,14 +3,26 @@ LIBEXECDIR ?= $(PREFIX)/libexec/dwm-session
 # LightDM's standard system session directory, independent of binary PREFIX.
 SESSIONDIR ?= /usr/share/xsessions
 
-all:
-	@echo 'No binaries to build. Use make check, install, install-user-config, or install-session.'
+all: help
+
+help:
+	@printf '%s\n' \
+		'make check                         test scripts' \
+		'make install-user-config           create missing user defaults (no sudo)' \
+		'sudo make install-launcher         install dwm-session for startx/LightDM' \
+		'sudo make install-lightdm-session  install optional LightDM desktop entry' \
+		'sudo make uninstall-launcher       remove dwm-session and helpers' \
+		'sudo make uninstall-lightdm-session  remove optional LightDM entry' \
+		'' \
+		'Compatibility aliases: install, install-session, uninstall, uninstall-session.'
 
 # There are no generated files; support the common clean/build/install workflow.
 clean:
 	@:
 
-install:
+install: install-launcher
+
+install-launcher:
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)"
 	sed 's|@LIBEXECDIR@|$(LIBEXECDIR)|g' dwm-session > "$(DESTDIR)$(PREFIX)/bin/dwm-session"
 	chmod 755 "$(DESTDIR)$(PREFIX)/bin/dwm-session"
@@ -38,16 +50,22 @@ install-user-config:
 	done
 
 # Explicit opt-in: ordinary installation never changes display-manager sessions.
-install-session:
+install-session: install-lightdm-session
+
+install-lightdm-session:
 	install -d "$(DESTDIR)$(SESSIONDIR)"
 	sed 's|@PREFIX@|$(PREFIX)|g' dwm.desktop > "$(DESTDIR)$(SESSIONDIR)/dwm.desktop"
 	chmod 644 "$(DESTDIR)$(SESSIONDIR)/dwm.desktop"
 
-uninstall:
+uninstall: uninstall-launcher
+
+uninstall-launcher:
 	rm -f "$(DESTDIR)$(PREFIX)/bin/dwm-session"
 	rm -f "$(DESTDIR)$(LIBEXECDIR)/distro-id" "$(DESTDIR)$(LIBEXECDIR)/void-audio"
 
-uninstall-session:
+uninstall-session: uninstall-lightdm-session
+
+uninstall-lightdm-session:
 	rm -f "$(DESTDIR)$(SESSIONDIR)/dwm.desktop"
 
 check:
@@ -55,4 +73,6 @@ check:
 	python3 tests/session.py
 	python3 tests/user-config.py
 
-.PHONY: all clean install install-user-config install-session uninstall uninstall-session check
+.PHONY: all help clean install install-launcher install-user-config install-session \
+	install-lightdm-session uninstall uninstall-launcher uninstall-session \
+	uninstall-lightdm-session check
